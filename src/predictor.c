@@ -40,7 +40,7 @@ uint32_t BHR;    // Branch history register: recent branch outcomes(length: ghis
 int perceptronTable_lengthBits;
 int8_t **perceptronTable; 
 int weight_num;
-int theta;
+double theta;
 
 
 //------------------------------------//
@@ -64,7 +64,7 @@ init_predictor()
   BHR = 0;
   // custom initialization
   perceptronTable_lengthBits = 8;
-  weight_num = 31;
+  weight_num = 31; // (num of weight factor = history length + 1)
   perceptronTable = (int8_t **) malloc(sizeof(int8_t *) * (1<<perceptronTable_lengthBits));
   for(int i = 0; i < (1<<perceptronTable_lengthBits); i ++)
     perceptronTable[i] = (int8_t *)malloc(sizeof(int8_t) * weight_num);
@@ -75,7 +75,7 @@ init_predictor()
       perceptronTable[i][j] = 0;
     }
   }
-  theta = (1.93 * perceptronTable_lengthBits) + 14;
+  theta = (1.93 * (weight_num-1)) + 14;
 }
 
 // Make a prediction for conditional branch instruction at PC 'pc'
@@ -210,7 +210,7 @@ train_custom_predictor(uint32_t pc, uint8_t outcome)
       y -= perceptronTable[ptID][i];
     }
   }
-  if (abs(y) < theta || ((y>=0)!=outcome)) {
+  if (abs(y) <= theta || ((y>=0)!=outcome)) {
     for (int i=0;i<weight_num;i++) {
       if (i==0) {
         if (outcome == TAKEN)
