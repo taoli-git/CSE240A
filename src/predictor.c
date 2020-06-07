@@ -63,8 +63,8 @@ init_predictor()
   for (int i = 0; i < (1<<ghistoryBits); i++) selectionTable[i] = 2; 
   BHR = 0;
   // custom initialization
-  perceptronTable_lengthBits = 8;
-  weight_num = 31; // (num of weight factor = history length + 1)
+  perceptronTable_lengthBits = 8; // There will be 2^8 = 256 entries in perceptronTable
+  weight_num = 31; // num of weight factor = history length + 1, we need to track (weight_num-1) bits history
   perceptronTable = (int8_t **) malloc(sizeof(int8_t *) * (1<<perceptronTable_lengthBits));
   for(int i = 0; i < (1<<perceptronTable_lengthBits); i ++)
     perceptronTable[i] = (int8_t *)malloc(sizeof(int8_t) * weight_num);
