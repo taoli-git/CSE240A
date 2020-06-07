@@ -35,12 +35,13 @@ int *gpredictTable;
 int *lhistoryTable;
 int *lpredictTable;
 int *selectionTable;
-int BHR;    // Branch history register: recent branch outcomes(length: ghistoryBits)
+uint32_t BHR;    // Branch history register: recent branch outcomes(length: ghistoryBits)
 
 int perceptronTable_lengthBits;
 int8_t **perceptronTable; 
 int weight_num;
-double theta;
+int theta;
+
 
 //------------------------------------//
 //        Predictor Functions         //
@@ -51,9 +52,6 @@ double theta;
 void
 init_predictor()
 {
-  if (bpType == CUSTOM) {
-    ghistoryBits = 14;
-  }
   gpredictTable = (int *)malloc((1<<ghistoryBits) * sizeof(int));
   for (int i = 0; i < (1<<ghistoryBits); i++) gpredictTable[i] = WN;
   lhistoryTable = (int *)malloc((1<<pcIndexBits) * sizeof(int));
@@ -64,13 +62,20 @@ init_predictor()
   selectionTable = (int *)malloc((1<<ghistoryBits) * sizeof(int));
   for (int i = 0; i < (1<<ghistoryBits); i++) selectionTable[i] = 2; 
   BHR = 0;
-  perceptronTable_lengthBits = 7;
-  weight_num = ghistoryBits + 1;
+  // custom initialization
+  perceptronTable_lengthBits = 8;
+  weight_num = 31;
   perceptronTable = (int8_t **) malloc(sizeof(int8_t *) * (1<<perceptronTable_lengthBits));
   for(int i = 0; i < (1<<perceptronTable_lengthBits); i ++)
     perceptronTable[i] = (int8_t *)malloc(sizeof(int8_t) * weight_num);
-  
-  theta = (1.93 * ghistoryBits) + 14;
+  for(int i = 0; i < (1<<perceptronTable_lengthBits); i ++)
+  {
+    for (int j=0;j<weight_num;j++)
+    {
+      perceptronTable[i][j] = 0;
+    }
+  }
+  theta = (1.93 * perceptronTable_lengthBits) + 14;
 }
 
 // Make a prediction for conditional branch instruction at PC 'pc'
@@ -99,19 +104,21 @@ uint8_t make_tournament_prediction(uint32_t pc){
 }
 
 uint8_t make_custom_prediction(uint32_t pc){
-  int ptID = pc & ((1<<perceptronTable_lengthBits) - 1);
-  int y = perceptronTable[ptID][1];
+  uint32_t ptID = pc & ((1 << perceptronTable_lengthBits) - 1);
+  int y = perceptronTable[ptID][0];
   
-  for (int i=0;i<ghistoryBits;i++) {
-    if (BHR & (1<<i) > 0) {   
-      y += perceptronTable[ptID][i+1];
+  for (int i=1;i<weight_num;i++) {
+    if ((BHR >> (i-1)) & 1) {
+      y += perceptronTable[ptID][i];
     } else {
-      y -= perceptronTable[ptID][i+1];
+      y -= perceptronTable[ptID][i];
     }
   }
   if (y>=0) return TAKEN;
   else return NOTTAKEN;
+
 }
+
 
 uint8_t
 make_prediction(uint32_t pc)
@@ -196,15 +203,15 @@ train_custom_predictor(uint32_t pc, uint8_t outcome)
   
   int ptID = pc & ((1<<perceptronTable_lengthBits) - 1);
   int y = perceptronTable[ptID][0];
-  for (int i=0;i<ghistoryBits;i++) {
-    if (BHR & (1<<i) > 0) {
-      y += perceptronTable[ptID][i+1];
+  for (int i=1;i<weight_num;i++) {
+    if ((BHR >> (i-1)) & 1) {
+      y += perceptronTable[ptID][i];
     } else {
-      y -= perceptronTable[ptID][i+1];
+      y -= perceptronTable[ptID][i];
     }
   }
-  if (abs(y) <= theta || ((y>=0)!=outcome)) {
-    for (int i=0;i<=ghistoryBits;i++) {
+  if (abs(y) < theta || ((y>=0)!=outcome)) {
+    for (int i=0;i<weight_num;i++) {
       if (i==0) {
         if (outcome == TAKEN)
         {
@@ -219,7 +226,7 @@ train_custom_predictor(uint32_t pc, uint8_t outcome)
             perceptronTable[ptID][i] -= 1;
           }
         }
-      } else if ((BHR & (1<<(i-1)))==outcome)
+      } else if (((BHR>>(i-1)) & 1)==outcome)
       {
         if (perceptronTable[ptID][i]<127)
         {
@@ -234,7 +241,7 @@ train_custom_predictor(uint32_t pc, uint8_t outcome)
       }
     }
   }
-
+  BHR = (BHR<<1 | outcome) & ((1<<weight_num) - 1);
 }
 
 // Train the predictor the last executed branch at PC 'pc' and with
