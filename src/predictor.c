@@ -40,7 +40,7 @@ uint32_t BHR;    // Branch history register: recent branch outcomes(length: ghis
 int perceptronTable_lengthBits;
 int8_t **perceptronTable; 
 int weight_num;
-double theta;
+int theta;
 
 
 //------------------------------------//
